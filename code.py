@@ -92,44 +92,107 @@ plt.show()
 
 print(f"\n✅ Graphique sauvegardé dans : {output_path}")
 
+## ============================
+# --- Construction du temps en secondes ---
+df["t"] = (df["datetime"] - df["datetime"].iloc[0]).dt.total_seconds()
 
-## ajout code ENMO
-def compute_enmo(df):
-    norm = np.sqrt(df['x']**2 + df['y']**2 + df['z']**2)
-    df['enmo'] = norm - 1  # keep negative values
-    return df
-df = compute_enmo(df)
-df.head()
+# -----------------------
+# LISTE DES FICHIERS À TRAITER
+# -----------------------
+file_list = [
+    "data/Bomane1_corde_poignetdroit.csv",
+    "data/Bomane2_corde_poignetdroit.csv",
+    "data/Bomane3_corde_poignetdroit.csv"
+]
 
-def aggregate_enmo_gmin(df, epoch_length):
+# -----------------------
+# BOUCLE DE TRAITEMENT
+# -----------------------
+for path in file_list:
+    
+    print(f"\n--- Traitement de : {path} ---")
+    
+    # === 1. Lecture robuste du CSV (réutilise ton code) ===
+    try:
+        df = pd.read_csv(path, header=None, sep=None, engine="python")
+    except:
+        df = pd.read_csv(path, header=None)
+
+    if df.shape[1] == 1:
+        for sep_try in [";", ",", "\t", "|"]:
+            df_try = pd.read_csv(path, header=None, sep=sep_try)
+            if df_try.shape[1] >= 3:
+                df = df_try
+                break
+
+    if df.shape[1] == 5:
+        df.columns = ["date", "heure", "ax", "ay", "az"]
+    elif df.shape[1] == 4:
+        df.columns = ["datetime_raw", "ax", "ay", "az"]
+    else:
+        raise ValueError(f"Format inattendu dans {path}")
+
+    if "date" in df.columns:
+        df["datetime"] = pd.to_datetime(df["date"] + " " + df["heure"], dayfirst=True, errors="coerce")
+    else:
+        df["datetime"] = pd.to_datetime(df["datetime_raw"], dayfirst=True, errors="coerce")
+
+    df = df.dropna(subset=["datetime"]).reset_index(drop=True)
+
+    for c in ["ax", "ay", "az"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    df = df.dropna(subset=["ax", "ay", "az"]).reset_index(drop=True)
+
+    # -----------------------
+    # === 2. CONSTRUCTION TEMPS T ===
+    # -----------------------
+    df["t"] = (df["datetime"] - df["datetime"].iloc[0]).dt.total_seconds()
+
+    # -----------------------
+    # === 3. CALCUL ENMO POSITIF ===
+    # -----------------------
+    norm = np.sqrt(df['ax']**2 + df['ay']**2 + df['az']**2)
+    df['enmo'] = (norm - 1).clip(lower=0)
+
+    # -----------------------
+    # === 4. EPOCH 10 SECONDES ===
+    # -----------------------
+    epoch_length = 10
     df['epoch'] = (df['t'] // epoch_length).astype(int)
+    
     aggregated = df.groupby('epoch')['enmo'].sum().reset_index()
-    aggregated['enmo_gmin'] = aggregated['enmo'] * (epoch_length / 60)  # correct factor
+    aggregated['enmo_gmin'] = aggregated['enmo'] * (epoch_length / 60)
     aggregated['time_min'] = aggregated['epoch'] * epoch_length / 60
-    return aggregated
 
-aggregated_10s = aggregate_enmo_gmin(df, epoch_length=10)   # visualisation epoch 10s 
+    # -----------------------
+    # === 5. GRAPHIQUE ===
+    # -----------------------
+    df['time_min'] = df['t'] / 60
 
-df['time_min'] = df['t'] / 60  # convert seconds to minutes
-fig, axs = plt.subplots(2, 1, figsize=(12, 8))
+    plt.figure(figsize=(12, 8))
 
-# Bar plot: ENMO aggregated
-axs[0].bar(aggregated_10s['time_min'], aggregated_10s['enmo_gmin'], width=0.15, color='grey')
-axs[0].set_title('ENMO integrated over 10.0 s intervals')
-axs[0].set_ylabel('Integrated ENMO (g·min)')
-axs[0].set_xlabel('Time (minutes)')
-axs[0].axhline(0, color='black', linewidth=0.8)
+    # ENMO intégré
+    plt.subplot(2, 1, 1)
+    plt.bar(aggregated['time_min'], aggregated['enmo_gmin'], width=0.15, color='grey')
+    plt.title(f'ENMO intégré (10s) – {os.path.basename(path)}')
+    plt.ylabel('ENMO intégré (g·min)')
+    plt.axhline(0, color='black', linewidth=0.8)
 
-# Line plot: raw ENMO
-axs[1].plot(df['time_min'], df['enmo'], color='steelblue')
-axs[1].set_title('Raw ENMO over Time')
-axs[1].set_xlabel('Time (minutes)')
-axs[1].set_ylabel('ENMO (g)')
-axs[1].axhline(0, color='black', linewidth=0.8)
+    # ENMO brut
+    plt.subplot(2, 1, 2)
+    plt.plot(df['time_min'], df['enmo'], color='steelblue')
+    plt.title('ENMO brut (>=0)')
+    plt.xlabel('Temps (minutes)')
+    plt.ylabel('ENMO (g)')
+    plt.axhline(0, color='black', linewidth=0.8)
 
-plt.tight_layout()
-plt.savefig('enmo_epoch_10s.png')
-plt.show()
+    plt.tight_layout()
 
+    # nom de sortie
+    name = os.path.basename(path).replace(".csv", "_ENMO_10s.png")
+    out_path = os.path.join("resultats", name)
+    plt.savefig(out_path, dpi=200)
+    plt.show()
 
-
+    print(f"✅ Graphique sauvegardé : {out_path}")
