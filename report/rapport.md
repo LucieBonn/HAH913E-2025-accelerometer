@@ -1,7 +1,7 @@
 ﻿
 # Accelerometer-based measurement to quantify muscle fatigue
 
-**Authors :** Mahoua KONE, Lucie Bonnot, Loubna EL FARESSI, Bomane PEHE 
+**Authors :** Mahoua KONE, Lucie BONNOT, Loubna EL FARESSI, Bomane PEHE 
 **Date :** November 10, 2025  
 **Supervisor :** Denis MOTTET
 
@@ -132,25 +132,52 @@ The resulting CSV files contained four columns: timestamp, X-axis acceleration, 
 
 ## 3. Measurement Methodology for Acceleration Signals
 
-Two main hypotheses guided the analysis of the acceleration signals recorded during the jump-rope exercise.
+To assess whether sensor placement (ankle vs. wrist) influences sensitivity to muscle fatigue, we processed the raw triaxial acceleration signals from both locations using the same metric and workflow. The analysis relied on the Euclidean Norm Minus One (ENMO), a widely used index of movement intensity derived from triaxial accelerometer data. ENMO reflects the magnitude of acceleration above 1 g (gravitational acceleration) and therefore quantifies active movement only.
 
-### Hypothesis 1: The intensity of the acceleration signal decreases across series, reflecting the progressive onset of muscle fatigue
+ ### 3.1. Pre-processing of acceleration signals
 
-The first hypothesis was that acceleration intensity would progressively decrease as muscular fatigue developed.
+To ensure consistent processing across both sensor locations, the raw triaxial acceleration data were first combined into a single magnitude representing overall movement intensity. 
 
-To test this, analyses were conducted between and within series:
-* Inter-series analysis
+$$
+\text{Norm} = \sqrt{a_x^2 + a_y^2 + a_z^2}
+$$
 
-The acceleration signals were converted into ENMO (Euclidean Norm Minus One g), which isolates the dynamic component of movement by subtracting gravitational acceleration. For each of the three series, ENMO-based indicators (mean, standard deviation, RMS, and maximum value) were calculated to assess whether a global decline in movement intensity occurred as repetitions accumulated.
+Movement-related acceleration was then extracted using the Euclidean Norm Minus One (ENMO) metric, which removes the constant gravitational component so that only dynamic motion remains.
 
-* Intra-series analysis
+$$
+\text{ENMO} = \max(\text{Norm} - 1, 0)
+$$
 
-Within each series, the ENMO time series was divided into regular epochs. For each epoch, the mean ENMO and RMS were computed. A gradual decrease in these indicators from the beginning to the end of the series was interpreted as a sign of local muscular fatigue, potentially reflecting reduced jump height, lower impact forces at landing, or decreased movement regularity.
+Time was normalized for each trial by subtracting the initial timestamp, allowing direct temporal comparison between wrist and ankle recordings.
 
-### Hypothesis 2: The sensor's position influences the detection of muscle fatigue.
+### 3.2. Sliding-window ENMO integration (10, 20, 30 s)
+To examine how movement intensity evolved throughout the exercise, ENMO was integrated over sliding time windows of 10, 20, and 30 seconds. 
 
-The second hypothesis concerned the influence of sensor placement on the detection of muscular fatigue.
+$$
+\text{ENMO}_{\text{integrated}}(t) = \sum_i \text{ENMO}_i \cdot \Delta t_i
+$$
 
-For each series and each sensor location (wrist and ankle), the same indicators (mean, RMS, and maximum value of total acceleration or ENMO) were computed. The signals recorded at the wrist and ankle were then compared to determine which location provided the most relevant information for detecting decreases in movement intensity associated with fatigue.
+For each window duration, ENMO values were multiplied by the sampling interval and summed over the window, producing a continuous curve that reflects short-term variations in movement dynamics.
 
-All measurements were collected from a single participant, which helped reduce inter-individual variability related to strength, movement amplitude, and endurance level. This approach enabled a comparative evaluation of how sensitive each sensor location is to fatigue-related changes in movement intensity.
+$$
+\text{ENMO}_{L_s}(t) = \sum_{i = t-L_s}^{t} \text{ENMO}_i \cdot \Delta t_i
+$$
+
+These sliding-window curves reveal gradual changes in jump amplitude, impact forces, and coordination that may indicate the onset of muscular fatigue.
+
+### 3.3. Fixed-window ENMO integration (10, 20, 30 s)
+
+To compare corresponding moments of the exercise between the two sensor locations, the ENMO signal was also segmented into non-overlapping fixed windows of 10, 20, and 30 seconds. For each window, total movement intensity was computed, providing one representative value per segment.
+
+$$
+\text{ENMO}_{L_s}^{(k)} = \sum_{i \in W_k} \text{ENMO}_i \cdot \Delta t_i,
+\qquad
+W_k = [kL,\,(k+1)L]
+$$
+
+These fixed-window values form a discrete intensity profile, enabling direct ankle–wrist comparison at identical time intervals during the session.
+
+### 3.4. ENMO Boxplot Analysis: Global Distribution Across Sensor Locations
+
+To simplify the overall analysis of the signal, we also represented the data using boxplots. The objective was to obtain a direct and intuitive visualization of the ENMO distribution for each series by comparing the ankle and the wrist on the same graph.
+Thus, we produced three separate figures: one for Series 1, one for Series 2, and one for Series 3. Each graph includes two boxplots, one for the ankle sensor and the other for the wrist sensor, which allows for a quick comparison of intensity levels, signal dispersion, and extreme values between the two locations, and highlights the global differences between the sensors across the different series.
